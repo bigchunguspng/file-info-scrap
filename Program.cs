@@ -14,7 +14,7 @@ foreach (var arg in args)
 
         var name = string.Join("-", arg.Split(invalidChars, RemoveEmptyEntries));
         var code = DateTime.UtcNow.Ticks % (1024 * 1024);
-        var path = $@"report-{code.ToString().PadLeft(7, '0')}-{name}.txt";
+        var path = $"report-{code.ToString().PadLeft(7, '0')}-{name}.txt";
         using var stream = File.CreateText(path);
         foreach (var line in FormatReport(report))
         {
@@ -56,8 +56,9 @@ IEnumerable<FileReport> ScanFileSystem(string path)
 IEnumerable<string> FormatReport(IEnumerable<FileReport> files)
 {
     const string f = "yyyy-MMM-dd' 'hh:mm:ss";
+    const string s = "    ";
 
-    yield return $"   INDEX   FILE-SIZE\t{"CREATED",-20}\t{"MODIFIED",-20}\tNAME";
+    yield return $"{"INDEX",8}{"FILE-SIZE",16}{s}{"CREATED",-20}{s}{"MODIFIED",-20}{s}NAME";
 
     var currentPath = "";
     var i = 0;
@@ -66,17 +67,16 @@ IEnumerable<string> FormatReport(IEnumerable<FileReport> files)
         i++;
         var path = Path.GetDirectoryName(file.Path);
         var name = Path.GetFileName     (file.Path);
-        var kb = MathF.Round(file.Length / 1024F, 2).ToString("N2");
-        var c = file. CreationTimeUtc.ToLocalTime().ToString(f);
-        var m = file.LastWriteTimeUtc.ToLocalTime().ToString(f);
+        var kbs = MathF.Round(file.Length / 1024F, 2).ToString("N2");
+        var ctd = file. CreationTimeUtc.ToLocalTime().ToString(f);
+        var mod = file.LastWriteTimeUtc.ToLocalTime().ToString(f);
 
-        var xd = string.Equals(currentPath, path) == false;
-        if (xd)
+        if (string.Equals(currentPath, path) == false)
         {
             currentPath = path;
-            yield return $"\n\n\t\t\t{path}\n";
+            yield return $"\n\n\t\t\t{s}{path}\n";
         }
 
-        yield return $"{i,8}{kb,12}\t{c}\t{m}\t{name}";
+        yield return $"{i,8}{kbs,16}{s}{ctd}{s}{mod}{s}{name}";
     }
 }
