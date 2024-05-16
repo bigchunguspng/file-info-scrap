@@ -1,6 +1,8 @@
-﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
+﻿using System.Globalization;
+using FileInfoScrap;
 using static System.StringSplitOptions;
+
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 
 var invalidChars = Path.GetInvalidFileNameChars();
 
@@ -14,8 +16,11 @@ foreach (var arg in args)
         var code = DateTime.UtcNow.Ticks % (1024 * 1024);
         var path = $@"report-{code.ToString().PadLeft(7, '0')}-{name}.txt";
         using var stream = File.CreateText(path);
-        using var writer = new JsonTextWriter(stream);
-        GetSerializer().Serialize(writer, report);
+        foreach (var line in FormatReport(report))
+        {
+            stream.WriteLine(line);
+            Console.WriteLine(line);
+        }
     }
     catch (Exception e)
     {
@@ -31,7 +36,8 @@ Console.ReadKey();
 
 IEnumerable<FileReport> ScanFileSystem(string path)
 {
-    Console.WriteLine($"\tScanning: [{path}]");
+    Console.ForegroundColor = ConsoleColor.Magenta;
+    Console.WriteLine($"Scanning \"{path}\"");
 
     var directory = new DirectoryInfo(path);
     var files = directory.GetFiles("*", new EnumerationOptions
@@ -41,35 +47,36 @@ IEnumerable<FileReport> ScanFileSystem(string path)
         ReturnSpecialDirectories = false
     });
 
-    Console.WriteLine($"\tFiles found: [{files.Length}]");
+    Console.WriteLine($"Files found: {files.Length}\n");
+    Console.ResetColor();
 
     return files.Select(x => new FileReport(x));
 }
 
-JsonSerializer GetSerializer() => new()
+IEnumerable<string> FormatReport(IEnumerable<FileReport> files)
 {
-    Formatting = Formatting.Indented,
-    ContractResolver = new DefaultContractResolver
-    {
-        NamingStrategy = new KebabCaseNamingStrategy()
-    },
-    DefaultValueHandling = DefaultValueHandling.Populate
-};
+    const string f = "yyyy-MMM-dd' 'hh:mm:ss";
 
-internal class FileReport
-{
-    public FileReport(FileInfo file)
+    yield return $"   INDEX   FILE-SIZE\t{"CREATED",-20}\t{"MODIFIED",-20}\tNAME";
+
+    var currentPath = "";
+    var i = 0;
+    foreach (var file in files)
     {
-        Path = file.FullName;
-        Length = file.Length;
-        CreationTimeUtc = file.CreationTimeUtc;
-        LastAccessTimeUtc = file.LastAccessTimeUtc;
-        LastWriteTimeUtc = file.LastWriteTimeUtc;
+        i++;
+        var path = Path.GetDirectoryName(file.Path);
+        var name = Path.GetFileName     (file.Path);
+        var kb = MathF.Round(file.Length / 1024F, 2).ToString("N2");
+        var c = file. CreationTimeUtc.ToLocalTime().ToString(f);
+        var m = file.LastWriteTimeUtc.ToLocalTime().ToString(f);
+
+        var xd = string.Equals(currentPath, path) == false;
+        if (xd)
+        {
+            currentPath = path;
+            yield return $"\n\n\t\t\t{path}\n";
+        }
+
+        yield return $"{i,8}{kb,12}\t{c}\t{m}\t{name}";
     }
-
-    [JsonProperty] public string Path;
-    [JsonProperty] public long Length;
-    [JsonProperty] public DateTime CreationTimeUtc;
-    [JsonProperty] public DateTime LastAccessTimeUtc;
-    [JsonProperty] public DateTime LastWriteTimeUtc;
 }
